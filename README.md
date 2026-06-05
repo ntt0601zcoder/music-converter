@@ -1,148 +1,178 @@
-# 🎵 → 🎼 Audio/Video → Sheet nhạc (Web)
+# 🎵 → 🎼 Audio/Video → Sheet Music (Web)
 
-Web app **React + Vite** chuyển file **audio hoặc video** thành **sheet nhạc** —
-chạy **hoàn toàn trong trình duyệt**, không cần server, không upload file đi đâu.
+A **React + Vite** web app that turns an **audio or video file** into **sheet music** —
+running **entirely in the browser**. No server, no uploads; your file never leaves your machine.
 
-Lõi nhận diện nốt dùng **[Basic Pitch](https://github.com/spotify/basic-pitch)**
-(mô hình AI mã nguồn mở của Spotify, bản TensorFlow.js), sau đó tự lượng tử hóa
-nhịp, sinh **MusicXML** và khắc bản nhạc bằng **[Verovio](https://www.verovio.org/)** (WASM).
+Note recognition is powered by **[Basic Pitch](https://github.com/spotify/basic-pitch)**
+(Spotify's open-source AI model, TensorFlow.js build). The app then quantizes the
+notes, builds **MusicXML**, and engraves the score with **[Verovio](https://www.verovio.org/)** (WASM).
 
 ```
-file audio/video (mp3/wav/flac/ogg/m4a/mp4/mov/webm)
-   │  Web Audio API            → giải mã + resample 22050 Hz mono
+audio/video file (mp3/wav/flac/ogg/m4a/mp4/mov/webm)
+   │  Web Audio API            → decode + resample to 22050 Hz mono
    ▼
   PCM mono 22050 Hz
-   │  Basic Pitch (AI, TFJS)   → nhận diện cao độ / hợp âm (đa âm)
+   │  Basic Pitch (AI, TFJS)   → frames/onsets probability maps (run once, cached)
    ▼
-  Note events  ──────────────► MIDI (.mid)   (giữ nhịp thô, trung thực)
-   │  Quantizer (tự viết)      → làm tròn nhịp, tách 2 tay, dấu nối qua vạch nhịp
+  Note events  ──────────────► MIDI (.mid)   (raw timing, faithful)
+   │  Quantizer                → snap rhythm, split hands, ties across barlines
    ▼
-  MusicXML  ─────────────────► .musicxml     (mở/sửa trong MuseScore)
-   │  Verovio (WASM)           → khắc bản nhạc
+  MusicXML  ─────────────────► .musicxml     (open/edit in MuseScore)
+   │  Verovio (WASM)           → engrave
    ▼
-  Sheet nhạc (SVG)  ─────────► In / Lưu PDF
+  Sheet music (SVG)  ────────► Print / Save as PDF
 ```
 
-Đây là phiên bản web của script Python `audio2sheet`. Các mặc định (ngưỡng AI,
-điểm tách tay trái/phải C4, tempo, nhịp…) được giữ cho khớp.
+## ✨ Features
 
----
+- **Import audio or video** — Web Audio decodes the audio track (Chromium reads mp4/mov/webm too).
+- **AI transcription** in the browser (no backend), with downloadable **MIDI**, **MusicXML**, and **Print/PDF**.
+- **Piano preview playback** with a real soundfont (bundled locally), plus a **Synthesia-style
+  falling-notes piano roll** whose keys light up in sync with the audio.
+- **Auto-calibrate sensitivity** — sweeps detection thresholds and suggests the cleanest setting.
+- **Instant tweaks** — the AI runs once; changing sensitivity re-derives notes in a **Web Worker**
+  (no model re-run, no UI freeze).
+- **Re-run the model** on preprocessed audio (normalize / gain) to genuinely change the result.
+- **Notation controls** — tempo, time signature, key signature, grand-staff vs single-staff, hand split.
 
-## 1. Yêu cầu
+## 1. Requirements
 
-- **Node.js ≥ 18** (khuyến nghị 20 LTS). Máy đang để mặc định Node 16 thì chuyển:
+- **Node.js ≥ 18** (20 LTS recommended). If your default is older:
   ```bash
-  nvm use 20      # hoặc: nvm install 20 && nvm use 20
+  nvm use 20      # or: nvm install 20 && nvm use 20
   ```
-- Trình duyệt **Chrome/Edge** (khuyến nghị) — `decodeAudioData` của Chromium đọc
-  được cả track âm thanh trong file **video** (mp4/mov/webm). Firefox/Safari chạy
-  tốt với file **audio**; với video thì tùy phiên bản.
+- A **Chromium-based browser** (Chrome/Edge) is recommended — its `decodeAudioData` reliably reads
+  the audio track from **video** files (mp4/mov/webm). Firefox/Safari work great for **audio** files.
 
-## 2. Cài đặt & chạy
+## 2. Install & run
 
 ```bash
 npm install
-npm run dev          # mở http://localhost:5173
+npm run dev          # open http://localhost:5173 (or your configured port)
 ```
 
-Build production:
+Production build:
 
 ```bash
-npm run build        # ra thư mục dist/
-npm run preview      # xem thử bản build
+npm run build        # outputs to dist/
+npm run preview      # preview the build
 ```
 
-> Lần đầu bấm “Chuyển thành sheet”, trình duyệt sẽ tải mô hình AI (~1 MB) và
-> Verovio (~2.4 MB gzip) — nên hơi lâu một chút; các lần sau dùng cache.
+> On the first **Transcribe**, the browser loads the AI model (~1 MB) and Verovio (~2.4 MB gzip),
+> so it takes a moment; subsequent runs use the cache.
 
-## 3. Cách dùng
+## 3. How to use
 
-1. Kéo–thả (hoặc bấm chọn) một file **audio/video**.
-2. Đặt **tiêu đề** rồi bấm **🎼 Chuyển thành sheet**.
-3. Bấm **▶ Nghe thử (piano)** để nghe lại các nốt AI nhận được — phát bằng mẫu
-   âm piano thật (soundfont). *Lần đầu cần mạng để tải mẫu âm.* Phát theo timing
-   gốc (không lượng tử hóa) để phản ánh đúng những gì AI nghe được.
-4. Xem bản nhạc, rồi tải về:
-   - **MIDI (.mid)** — giữ nguyên nhịp thô từ AI, hợp để mở trong DAW.
-   - **MusicXML** — mở/sửa trong [MuseScore](https://musescore.org) (miễn phí).
-   - **PDF / In** — mở hộp thoại in của trình duyệt → chọn *Save as PDF* (vector, nét).
+1. Drag & drop (or click to pick) an **audio/video** file.
+2. Set a **title**, then click **🎼 Transcribe**.
+3. Click **▶ Play (piano)** to preview — notes fall onto the keyboard and the keys light up in time.
+4. Download:
+   - **MIDI (.mid)** — raw AI timing, good for a DAW.
+   - **MusicXML** — open/edit in [MuseScore](https://musescore.org) (free).
+   - **PDF / Print** — the browser print dialog → *Save as PDF* (vector quality).
 
-### Bảng điều khiển
+### Notation controls (instant — no AI re-run)
 
-| Mục | Tác dụng |
+| Control | Effect |
 |---|---|
-| **Bố cục** | *Piano (2 tay)* = khuông kép tách khóa Sol/Fa, hoặc *Giai điệu (1 khuông)* cho sáo/giọng hát/1 nhạc cụ. |
-| **Tempo (BPM)** | Ảnh hưởng trực tiếp cách chia phách/nốt. Đặt sai tempo → nhịp lệch dù cao độ vẫn đúng. |
-| **Số chỉ nhịp** | 4/4, 3/4, 2/4, 2/2, 6/8, 3/8. |
-| **Lưới làm tròn** | Độ mịn khi quantize: nốt đen / móc đơn / móc kép (1/16). |
-| **Hóa biểu** | Chọn giọng (số dấu thăng/giáng) — cũng quyết định ghi thăng hay giáng. |
-| **Ranh giới 2 tay** | Cao độ MIDI ngăn tay phải/trái (mặc định C4 = 60). |
-| **Ngưỡng onset/frame** | Cao = ít nốt nhiễu hơn (dễ sót); thấp = bắt nhiều nốt hơn. |
-| **Độ dài nốt tối thiểu** | Lọc các nốt quá ngắn (rác). |
+| **Layout** | Piano grand staff (split hands) or single melody staff. |
+| **Tempo (BPM)** | Drives how durations map to note values. |
+| **Time signature** | 4/4, 3/4, 2/4, 2/2, 6/8, 3/8. |
+| **Quantize grid** | Rounding resolution: quarter / eighth / 16th. |
+| **Key signature** | Sharps/flats; also drives accidental spelling. |
+| **Hand split** | MIDI pitch dividing the right/left hand (default C4 = 60). |
 
-> Đổi các mục trong khung **Ký âm** sẽ cập nhật bản nhạc **ngay** (không chạy lại AI).
-> Đổi **Độ nhạy nhận diện** rồi bấm **↻ Nhận diện lại** mới chạy lại mô hình.
+### Detection sensitivity (instant — re-derives from the cached model output)
 
-## 4. Mẹo cho kết quả tốt
+| Control | Effect |
+|---|---|
+| **Onset threshold** | Confidence to count a **new note onset**. Higher = fewer/cleaner; lower = more (riskier). |
+| **Frame threshold** | Confidence a note is **still sounding** → controls note **length**. |
+| **Min note length** | Drops fragments shorter than this (filters junk). |
+| **✨ Auto-calibrate** | Sweeps the above and proposes the cleanest setting (review → Apply). |
 
-1. **Bản thu càng sạch, đơn giản càng tốt** — piano độc tấu / một dòng giai điệu
-   rõ cho kết quả tốt nhất. Mix dày nhiều nhạc cụ sẽ kém chính xác.
-2. **Đặt đúng tempo** trước khi đọc bản nhạc.
-3. **Tinh chỉnh lần cuối trong MuseScore** — mở file `.musicxml`. Đây là bước gần
-   như luôn cần với *mọi* công cụ tự động.
+> Sensitivity is **post-processing**. The AI sees only the audio, so changing thresholds and
+> re-running the model gives the *same* notes — the instant re-derive is exact, just faster.
 
-## 5. Giới hạn (nói thật)
+### Re-run the model (AI)
 
-- Không ngang các sản phẩm thương mại (AnthemScore, Klang.io…) vốn huấn luyện
-  nhiều năm trên dữ liệu độc quyền. App này dựng trên mô hình mã nguồn mở.
-- Tốt với **piano / giai điệu rõ**; kém với **mix nhiều bè, nhiều nhạc cụ, thu ồn**.
-- Tách tay trái/phải chỉ theo **ngưỡng cao độ**, không hiểu ngữ cảnh như người chơi.
-- Tempo, hóa biểu, cách ghi nhịp là **suy đoán** → xem như **bản nháp tốt**.
-- **Khác với bản Python:** quantizer ở đây dùng **lưới chia 2 (đến 1/16)**, **chưa
-  hỗ trợ chùm 3 (triplet)** — phần mà `music21` lo giúp ở bản Python. Nhịp có
-  triplet sẽ bị làm tròn về lưới gần nhất.
+To get a genuinely **different** result you must change the model's **input**:
 
-## 6. Kiểm thử
+- **Normalize** / **Gain** boost the waveform (Basic Pitch doesn't normalize internally, so quiet
+  recordings under-detect). Then **↻ Re-run model (AI)**.
+- Or feed a cleaner source (a separated **.mp3/.wav** instead of a flaky video decode).
+
+## 4. Tips for better results
+
+1. **Cleaner, simpler audio is best** — solo piano or a clear melodic line. Dense multi-instrument
+   mixes are much harder.
+2. **Set the right tempo** before reading the score.
+3. **Finish in MuseScore** — open the `.musicxml`. Some manual cleanup is needed with *any* automatic tool.
+
+## 5. Limitations (honest)
+
+- Not on par with commercial products (AnthemScore, Klang.io…) trained for years on proprietary data.
+  This builds on an open-source model.
+- Good for **piano / clear melody**; weaker on **dense mixes, many instruments, or noisy recordings**.
+- Hand split is by **pitch threshold** only, not musical context.
+- Tempo, key and bar-fitting are **estimates** → treat the output as a **solid draft**.
+- The quantizer uses a **power-of-two grid (down to 1/16)** and **does not support triplets** yet.
+
+## 6. Testing
 
 ```bash
-npm test        # unit test: quantizer (điền đủ ô nhịp, dấu nối), MusicXML, MIDI,
-                # và validate bằng cách LOAD THẬT vào Verovio
+npm test        # unit tests: quantizer (full bars, ties), MusicXML, MIDI,
+                # plus validating the generated MusicXML by loading it into Verovio
 ```
 
-End-to-end (cần dev server đang chạy + Google Chrome):
+End-to-end smoke test (needs the dev server running + Google Chrome):
 
 ```bash
-npm run dev                 # ở một terminal
-npm run e2e                 # tạo WAV hợp âm rải, nạp vào app thật, kiểm tra sheet render
+npm run dev
+npm run e2e     # synthesizes a chord-arpeggio WAV, drives the real app in headless
+                # Chrome, and verifies note detection + Verovio rendering
 ```
 
-`npm run e2e` tổng hợp một file WAV (C4–E4–G4–C5), điều khiển Chrome headless chạy
-toàn bộ pipeline và xác nhận AI nhận đúng số nốt + Verovio khắc ra bản nhạc
-(screenshot lưu ở `/tmp/e2e-sheet.png`).
-
-## 7. Cấu trúc mã
+## 7. Project structure
 
 ```
 src/
   lib/
-    audio.ts        # giải mã + resample 22050 Hz mono (Web Audio API)
-    transcribe.ts   # Basic Pitch: audio -> note events (dynamic import)
-    midi.ts         # note events -> MIDI bytes (@tonejs/midi)
-    music.ts        # nhạc lý: MIDI -> tên nốt / hóa biểu
-    quantize.ts     # lượng tử hóa -> mô hình measure/voice (tách 2 tay, dấu nối)
-    musicxml.ts     # mô hình -> MusicXML 4.0
-    verovio.ts      # MusicXML -> SVG (Verovio WASM, dynamic import)
-    *.test.ts       # unit + tích hợp Verovio
-  components/        # Dropzone, Controls, SheetMusic
-  App.tsx           # orchestration toàn pipeline
-public/model/       # trọng số mô hình Basic Pitch (phục vụ cục bộ)
+    audio.ts        # decode + resample to 22050 Hz mono; audio preprocessing (normalize/gain)
+    transcribe.ts   # Basic Pitch model run (TFJS) → frames/onsets (cached)
+    note.worker.ts  # Web Worker: outputToNotesPoly post-processing + sensitivity sweep
+    noteWorker.ts   # main-thread client for the worker (derive / calibrate)
+    midi.ts         # note events → MIDI bytes (@tonejs/midi)
+    music.ts        # MIDI → note names / key signatures
+    quantize.ts     # quantize → measure/voice model (hand split, ties)
+    musicxml.ts     # model → MusicXML 4.0
+    player.ts       # piano playback (soundfont + synth fallback, audio-clock sync)
+    verovio.ts      # MusicXML → SVG (Verovio WASM, dynamic import)
+    *.test.ts       # unit + Verovio integration tests
+  components/        # Dropzone, Controls, SheetMusic, PianoRoll (falling notes + keyboard)
+  App.tsx           # pipeline orchestration
+public/
+  model/            # Basic Pitch model weights (served locally)
+  soundfonts/       # acoustic grand piano samples (served locally)
 ```
 
-## 8. Thành phần mã nguồn mở
+## 8. Deployment
 
-| Việc | Thư viện | Giấy phép |
+100% static — no env vars, no backend, no special headers (no SharedArrayBuffer).
+
+- **Root domain** (Netlify / Vercel / Cloudflare Pages): `npm run build`, deploy `dist/`.
+- **Subpath** (e.g. GitHub Pages at `…/music-converter/`): build with a base path —
+  ```bash
+  npm run build -- --base=/music-converter/
+  ```
+  The model and soundfont paths use `import.meta.env.BASE_URL`, so they follow the base automatically.
+
+## 9. Open-source components
+
+| Purpose | Library | License |
 |---|---|---|
-| Audio → nốt (AI) | [Basic Pitch](https://github.com/spotify/basic-pitch-ts) (Spotify) | Apache-2.0 |
-| Chạy mô hình | TensorFlow.js | Apache-2.0 |
+| Audio → notes (AI) | [Basic Pitch](https://github.com/spotify/basic-pitch-ts) (Spotify) | Apache-2.0 |
+| Model runtime | TensorFlow.js | Apache-2.0 |
 | MIDI | [@tonejs/midi](https://github.com/Tonejs/Midi) | MIT |
-| Khắc bản nhạc | [Verovio](https://github.com/rism-digital/verovio) | LGPL-3.0 |
+| Piano samples | [soundfont-player](https://github.com/danigb/soundfont-player) + Gleitz MIDI.js soundfonts | MIT |
+| Engraving | [Verovio](https://github.com/rism-digital/verovio) | LGPL-3.0 |
