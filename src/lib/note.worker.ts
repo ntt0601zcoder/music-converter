@@ -4,7 +4,6 @@
 // outputToNotesPoly / noteFramesToTime are pure JS (no TensorFlow), so the
 // worker stays lightweight — we import them directly from the package's ESM.
 import { outputToNotesPoly, noteFramesToTime } from '@spotify/basic-pitch/esm/toMidi';
-import { mergeRepeatedNotes } from './notesPostprocess';
 
 interface DeriveOptions {
   onsetThreshold: number;
@@ -38,10 +37,6 @@ function midiToHz(midi: number): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-// Merge same-pitch onsets separated by only a tiny gap (a held note the model
-// chopped into repeats) into one note.
-const MERGE_GAP_SECONDS = 0.09;
-
 function derive(frames: number[][], onsets: number[][], o: DeriveOptions): NoteEventTime[] {
   const minFreq = o.minPitchMidi != null ? midiToHz(o.minPitchMidi) : null;
   const maxFreq = o.maxPitchMidi != null ? midiToHz(o.maxPitchMidi) : null;
@@ -56,7 +51,8 @@ function derive(frames: number[][], onsets: number[][], o: DeriveOptions): NoteE
     minFreq,
   );
   const notes = noteFramesToTime(poly) as NoteEventTime[];
-  return mergeRepeatedNotes(notes, MERGE_GAP_SECONDS);
+  notes.sort((a, b) => a.startTimeSeconds - b.startTimeSeconds || a.pitchMidi - b.pitchMidi);
+  return notes;
 }
 
 function scoreNotes(notes: NoteEventTime[]): number {
