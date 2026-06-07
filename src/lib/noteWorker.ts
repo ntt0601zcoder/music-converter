@@ -3,13 +3,6 @@
 
 import type { NoteEventTime, TranscribeOptions } from './transcribe';
 
-export interface SensitivitySuggestion {
-  onsetThreshold: number;
-  frameThreshold: number;
-  minNoteLengthFrames: number;
-  noteCount: number;
-}
-
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -60,9 +53,4 @@ export function initNoteWorker(frames: number[][], onsets: number[][]): Promise<
 /** Derive notes at the given thresholds — runs in the worker, no UI freeze. */
 export function deriveNotes(options: TranscribeOptions): Promise<NoteEventTime[]> {
   return request('derive', { options });
-}
-
-/** Sweep thresholds in the worker and return the best setting. */
-export function calibrate(onProgress?: (fraction: number) => void): Promise<SensitivitySuggestion> {
-  return request('calibrate', {}, onProgress);
 }

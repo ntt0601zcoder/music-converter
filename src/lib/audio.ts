@@ -87,49 +87,6 @@ export async function resampleToMono22050(buffer: AudioBuffer): Promise<AudioBuf
   return offline.startRendering();
 }
 
-export interface PreprocessOptions {
-  /** Peak-normalize to ~0.97 before applying gain (safe boost for quiet audio). */
-  normalize: boolean;
-  /** Extra gain multiplier applied after normalization (1 = unchanged). */
-  gain: number;
-}
-
-/**
- * Audio preprocessing that genuinely changes the model's INPUT (so re-running
- * the model afterward yields different notes). Basic Pitch does not normalize
- * internally, so amplitude matters: boosting quiet recordings surfaces notes.
- * Returns the same buffer when there is nothing to do.
- */
-export function preprocessBuffer(buffer: AudioBuffer, opts: PreprocessOptions): AudioBuffer {
-  const factorFromGain = Number.isFinite(opts.gain) ? opts.gain : 1;
-  if (!opts.normalize && factorFromGain === 1) return buffer;
-
-  const data = buffer.getChannelData(0);
-  let scale = factorFromGain;
-  if (opts.normalize) {
-    let peak = 0;
-    for (let i = 0; i < data.length; i++) {
-      const a = Math.abs(data[i]);
-      if (a > peak) peak = a;
-    }
-    if (peak > 0) scale *= 0.97 / peak;
-  }
-  if (scale === 1) return buffer;
-
-  const Offline =
-    window.OfflineAudioContext ??
-    (window as unknown as { webkitOfflineAudioContext: typeof OfflineAudioContext })
-      .webkitOfflineAudioContext;
-  const ctx = new Offline(1, data.length, TARGET_SAMPLE_RATE);
-  const out = ctx.createBuffer(1, data.length, TARGET_SAMPLE_RATE);
-  const dst = out.getChannelData(0);
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i] * scale;
-    dst[i] = v > 1 ? 1 : v < -1 ? -1 : v; // clamp to avoid clipping overflow
-  }
-  return out;
-}
-
 export interface PreparedAudio {
   /** Mono @ 22050 Hz, ready for Basic Pitch. */
   buffer: AudioBuffer;

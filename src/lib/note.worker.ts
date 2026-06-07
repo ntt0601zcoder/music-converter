@@ -20,13 +20,6 @@ interface NoteEventTime {
   amplitude: number;
 }
 
-const ONSET_GRID = [0.2, 0.3, 0.4, 0.5];
-const FRAME_GRID = [0.2, 0.35];
-const MINLEN_GRID = [7, 11];
-const JUNK_SECONDS = 0.06;
-const ANNOTATIONS_FPS = Math.floor(22050 / 256); // ~86
-const CALIB_WINDOW_FRAMES = 40 * ANNOTATIONS_FPS; // calibrate on a ~40 s excerpt
-
 let FRAMES: number[][] = [];
 let ONSETS: number[][] = [];
 
@@ -55,22 +48,6 @@ function derive(frames: number[][], onsets: number[][], o: DeriveOptions): NoteE
   return notes;
 }
 
-function scoreNotes(notes: NoteEventTime[]): number {
-  const n = notes.length;
-  if (n === 0) return -Infinity;
-  let junk = 0;
-  let end = 0;
-  for (const x of notes) {
-    if (x.durationSeconds < JUNK_SECONDS) junk++;
-    end = Math.max(end, x.startTimeSeconds + x.durationSeconds);
-  }
-  const good = n - junk;
-  const notesPerSecond = n / Math.max(1, end);
-  let score = good - 3 * junk;
-  if (notesPerSecond > 16) score -= notesPerSecond - 16;
-  return score;
-}
-
 self.onmessage = (e: MessageEvent) => {
   const data = e.data as { type: string; id: number; [k: string]: unknown };
   const { type, id } = data;
@@ -84,59 +61,6 @@ self.onmessage = (e: MessageEvent) => {
     if (type === 'derive') {
       const notes = derive(FRAMES, ONSETS, data.options as DeriveOptions);
       post({ type: 'result', id, result: notes });
-      return;
-    }
-    if (type === 'calibrate') {
-      // Calibrate on a representative middle excerpt for speed on long songs.
-      let f = FRAMES;
-      let o = ONSETS;
-      if (FRAMES.length > CALIB_WINDOW_FRAMES) {
-        const start = Math.floor((FRAMES.length - CALIB_WINDOW_FRAMES) / 2);
-        f = FRAMES.slice(start, start + CALIB_WINDOW_FRAMES);
-        o = ONSETS.slice(start, start + CALIB_WINDOW_FRAMES);
-      }
-      const scale = FRAMES.length / Math.max(1, f.length);
-      const combos: { on: number; fr: number; ml: number }[] = [];
-      for (const on of ONSET_GRID)
-        for (const fr of FRAME_GRID) for (const ml of MINLEN_GRID) combos.push({ on, fr, ml });
-
-      let best: {
-        onsetThreshold: number;
-        frameThreshold: number;
-        minNoteLengthFrames: number;
-        noteCount: number;
-      } | null = null;
-      let bestScore = -Infinity;
-
-      for (let i = 0; i < combos.length; i++) {
-        const c = combos[i];
-        const notes = derive(f, o, {
-          onsetThreshold: c.on,
-          frameThreshold: c.fr,
-          minNoteLengthFrames: c.ml,
-        });
-        const sc = scoreNotes(notes);
-        if (sc > bestScore) {
-          bestScore = sc;
-          best = {
-            onsetThreshold: c.on,
-            frameThreshold: c.fr,
-            minNoteLengthFrames: c.ml,
-            noteCount: Math.round(notes.length * scale),
-          };
-        }
-        post({ type: 'progress', id, value: (i + 1) / combos.length });
-      }
-      post({
-        type: 'result',
-        id,
-        result: best ?? {
-          onsetThreshold: 0.2,
-          frameThreshold: 0.2,
-          minNoteLengthFrames: 7,
-          noteCount: 0,
-        },
-      });
       return;
     }
   } catch (err) {

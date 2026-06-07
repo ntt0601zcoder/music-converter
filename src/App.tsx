@@ -4,19 +4,14 @@ import { Dropzone } from './components/Dropzone';
 import { Controls } from './components/Controls';
 import { SheetMusic } from './components/SheetMusic';
 import { PianoRoll } from './components/PianoRoll';
-import { prepareAudio, preprocessBuffer } from './lib/audio';
+import { prepareAudio } from './lib/audio';
 import {
   DEFAULT_TRANSCRIBE_OPTIONS,
   runModel,
   type NoteEventTime,
   type TranscribeOptions,
 } from './lib/transcribe';
-import {
-  calibrate,
-  deriveNotes,
-  initNoteWorker,
-  type SensitivitySuggestion,
-} from './lib/noteWorker';
+import { deriveNotes, initNoteWorker } from './lib/noteWorker';
 import { DEFAULT_SCORE_SETTINGS, quantizeScore, type ScoreSettings } from './lib/quantize';
 import { scoreToMusicXml } from './lib/musicxml';
 import { notesToMidiBytes } from './lib/midi';
@@ -44,14 +39,6 @@ export default function App() {
   // Whether the worker holds model output for the current audio (sensitivity
   // changes then re-derive in the worker — no model re-run, no UI freeze).
   const hasOutputRef = useRef(false);
-  const [suggestion, setSuggestion] = useState<SensitivitySuggestion | null>(null);
-  const [suggesting, setSuggesting] = useState(false);
-  const [suggestProgress, setSuggestProgress] = useState(0);
-
-  // Audio preprocessing — changes the model INPUT, so re-running the model gives
-  // genuinely different notes (the only way to get a different model result).
-  const [audioNormalize, setAudioNormalize] = useState(false);
-  const [audioGain, setAudioGain] = useState(1);
 
   const [svgPages, setSvgPages] = useState<string[] | null>(null);
   const [rendering, setRendering] = useState(false);
@@ -196,7 +183,6 @@ export default function App() {
     setSvgPages(null);
     setError(null);
     setStatus('idle');
-    setSuggestion(null);
     preparedBufferRef.current = null;
     hasOutputRef.current = false;
     preloadVerovio();
@@ -206,7 +192,6 @@ export default function App() {
     if (!file) return;
     stopPlayback();
     setError(null);
-    setSuggestion(null);
     setStatus('decoding');
     try {
       const prepared = await prepareAudio(file);
@@ -230,56 +215,6 @@ export default function App() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [transcribeOptions, reDeriveNotes, stopPlayback]);
-
-  // ✨ Auto-calibrate: sweep thresholds on cached output and propose the best.
-  const handleSuggest = useCallback(async () => {
-    if (!hasOutputRef.current) return;
-    setSuggesting(true);
-    setSuggestProgress(0);
-    try {
-      const s = await calibrate((p) => setSuggestProgress(p));
-      setSuggestion(s);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSuggesting(false);
-    }
-  }, []);
-
-  const handleApplySuggestion = useCallback(async () => {
-    if (!suggestion) return;
-    const next: TranscribeOptions = {
-      ...transcribeOptions,
-      onsetThreshold: suggestion.onsetThreshold,
-      frameThreshold: suggestion.frameThreshold,
-      minNoteLengthFrames: suggestion.minNoteLengthFrames,
-    };
-    setTranscribeOptions(next);
-    setSuggestion(null);
-    stopPlayback();
-    try {
-      await reDeriveNotes(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [suggestion, transcribeOptions, reDeriveNotes, stopPlayback]);
-
-  // ↻ Re-run the FULL model on the (preprocessed) audio — the only way to get a
-  // genuinely different model result.
-  const handleRerunModel = useCallback(async () => {
-    const buffer = preparedBufferRef.current;
-    if (!buffer) return;
-    stopPlayback();
-    setError(null);
-    setSuggestion(null);
-    try {
-      const input = preprocessBuffer(buffer, { normalize: audioNormalize, gain: audioGain });
-      await runModelAndDerive(input, transcribeOptions);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus('error');
-    }
-  }, [audioNormalize, audioGain, transcribeOptions, runModelAndDerive, stopPlayback]);
 
   const stem = file ? fileStem(file.name) : 'transcription';
   const noteCount = notes?.length ?? 0;
@@ -387,17 +322,6 @@ export default function App() {
               busy={busy}
               hasAudio={Boolean(preparedBufferRef.current)}
               showScore={hasResult}
-              onSuggest={handleSuggest}
-              suggesting={suggesting}
-              suggestProgress={suggestProgress}
-              suggestion={suggestion}
-              onApplySuggestion={handleApplySuggestion}
-              onDismissSuggestion={() => setSuggestion(null)}
-              normalize={audioNormalize}
-              onNormalize={setAudioNormalize}
-              gain={audioGain}
-              onGain={setAudioGain}
-              onRerunModel={handleRerunModel}
             />
           </aside>
 

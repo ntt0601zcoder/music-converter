@@ -197,52 +197,6 @@ body {
 .btn--secondary {
   width: 100%;
 }
-.btn--suggest {
-  width: 100%;
-  margin-bottom: 10px;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.18), rgba(160, 107, 255, 0.18));
-  border-color: rgba(124, 110, 255, 0.5);
-  color: #d6e4ff;
-}
-
-.suggestion {
-  background: linear-gradient(180deg, rgba(0, 212, 255, 0.08), rgba(160, 107, 255, 0.06));
-  border: 1px solid rgba(124, 110, 255, 0.45);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  margin-bottom: 10px;
-}
-.suggestion__title {
-  font-size: 0.82rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-.suggestion__rows {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.suggestion__rows span {
-  font-size: 0.78rem;
-  color: var(--muted);
-  background: var(--panel-2);
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-.suggestion__rows b {
-  color: var(--text);
-}
-.suggestion__actions {
-  display: flex;
-  gap: 8px;
-}
-.suggestion__actions .btn {
-  flex: 1;
-  padding: 8px;
-  font-size: 0.85rem;
-}
 .btn--download {
   width: 100%;
   display: flex;
@@ -488,20 +442,6 @@ body {
   color: var(--muted-2);
   margin: 10px 0 0;
   line-height: 1.5;
-}
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  color: var(--text);
-  margin-bottom: 12px;
-  cursor: pointer;
-}
-.checkbox-row input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
 }
 
 /* ---------------- Sheet area ---------------- */

@@ -1,6 +1,5 @@
 import type { ScoreSettings } from '../lib/quantize';
 import type { TranscribeOptions } from '../lib/transcribe';
-import type { SensitivitySuggestion } from '../lib/noteWorker';
 import { midiToNoteName } from '../lib/music';
 
 interface ControlsProps {
@@ -13,19 +12,6 @@ interface ControlsProps {
   hasAudio: boolean;
   /** Hide the score (notation) section when there are no notes yet. */
   showScore?: boolean;
-  /** Auto-calibrate sensitivity from the cached model output. */
-  onSuggest: () => void;
-  suggesting: boolean;
-  suggestProgress: number;
-  suggestion: SensitivitySuggestion | null;
-  onApplySuggestion: () => void;
-  onDismissSuggestion: () => void;
-  /** Audio preprocessing — re-runs the model to get genuinely different notes. */
-  normalize: boolean;
-  onNormalize: (v: boolean) => void;
-  gain: number;
-  onGain: (v: number) => void;
-  onRerunModel: () => void;
 }
 
 const TIME_SIGNATURES: { label: string; beats: number; beatType: number }[] = [
@@ -60,17 +46,6 @@ export function Controls({
   busy,
   hasAudio,
   showScore = true,
-  onSuggest,
-  suggesting,
-  suggestProgress,
-  suggestion,
-  onApplySuggestion,
-  onDismissSuggestion,
-  normalize,
-  onNormalize,
-  gain,
-  onGain,
-  onRerunModel,
 }: ControlsProps) {
   return (
     <div className="controls">
@@ -234,78 +209,12 @@ export function Controls({
 
         <button
           type="button"
-          className="btn btn--suggest"
-          disabled={busy || suggesting || !hasAudio}
-          onClick={onSuggest}
-        >
-          {suggesting
-            ? `⏳ Đang dò… ${Math.round(suggestProgress * 100)}%`
-            : '✨ Tự dò độ nhạy tốt nhất'}
-        </button>
-
-        {suggestion && (
-          <div className="suggestion">
-            <div className="suggestion__title">Gợi ý cho bài này → {suggestion.noteCount} nốt</div>
-            <div className="suggestion__rows">
-              <span>onset <b>{suggestion.onsetThreshold.toFixed(2)}</b></span>
-              <span>frame <b>{suggestion.frameThreshold.toFixed(2)}</b></span>
-              <span>min <b>{suggestion.minNoteLengthFrames}</b></span>
-            </div>
-            <div className="suggestion__actions">
-              <button type="button" className="btn btn--primary" onClick={onApplySuggestion}>
-                Áp dụng
-              </button>
-              <button type="button" className="btn" onClick={onDismissSuggestion}>
-                Bỏ qua
-              </button>
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
           className="btn btn--secondary"
           disabled={busy || !hasAudio}
           onClick={onRetranscribe}
         >
           ↻ Áp dụng
         </button>
-      </details>
-
-      <details className="controls__section">
-        <summary>Chạy lại model (AI)</summary>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(e) => onNormalize(e.target.checked)}
-          />
-          Chuẩn hóa âm lượng
-        </label>
-        <div className="field">
-          <label htmlFor="gain">Khuếch đại: {gain.toFixed(1)}×</label>
-          <input
-            id="gain"
-            type="range"
-            min={1}
-            max={8}
-            step={0.5}
-            value={gain}
-            onChange={(e) => onGain(Number(e.target.value))}
-          />
-        </div>
-        <button
-          type="button"
-          className="btn btn--secondary"
-          disabled={busy || !hasAudio}
-          onClick={onRerunModel}
-        >
-          ↻ Chạy lại model (AI)
-        </button>
-        <p className="hint">
-          Đổi đầu vào audio (to/nhỏ) rồi chạy lại AI → nốt khác. Cùng audio thì AI
-          luôn cho nốt y hệt.
-        </p>
       </details>
     </div>
   );
