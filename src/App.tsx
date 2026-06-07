@@ -4,6 +4,7 @@ import { Dropzone } from './components/Dropzone';
 import { Controls } from './components/Controls';
 import { SheetMusic } from './components/SheetMusic';
 import { PianoRoll } from './components/PianoRoll';
+import { Fretboard } from './components/Fretboard';
 import { prepareAudio } from './lib/audio';
 import {
   DEFAULT_TRANSCRIBE_OPTIONS,
@@ -391,13 +392,22 @@ export default function App() {
                   <span className="play-source">(âm tổng hợp tạm — không tải được mẫu)</span>
                 )}
               </div>
-              <PianoRoll
-                notes={notes ?? []}
-                lowMidi={pitchRange.low}
-                highMidi={pitchRange.high}
-                isPlaying={playState === 'playing'}
-                getTime={getPlaybackTime}
-              />
+              {instrument === 'piano' ? (
+                <PianoRoll
+                  notes={notes ?? []}
+                  lowMidi={pitchRange.low}
+                  highMidi={pitchRange.high}
+                  isPlaying={playState === 'playing'}
+                  getTime={getPlaybackTime}
+                />
+              ) : (
+                <Fretboard
+                  instrument={instrument}
+                  notes={notes ?? []}
+                  isPlaying={playState === 'playing'}
+                  getTime={getPlaybackTime}
+                />
+              )}
             </div>
             {rendering && <div className="rendering-overlay no-print">Đang khắc bản nhạc…</div>}
             {svgPages && svgPages.length > 0 ? (
