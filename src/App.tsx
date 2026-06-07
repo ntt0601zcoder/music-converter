@@ -16,7 +16,13 @@ import { DEFAULT_SCORE_SETTINGS, quantizeScore, type ScoreSettings } from './lib
 import { scoreToMusicXml } from './lib/musicxml';
 import { notesToMidiBytes } from './lib/midi';
 import { preloadVerovio, renderMusicXmlToSvg } from './lib/verovio';
-import { playNotes, type InstrumentSource, type PlaybackHandle } from './lib/player';
+import {
+  INSTRUMENTS,
+  playNotes,
+  type InstrumentId,
+  type InstrumentSource,
+  type PlaybackHandle,
+} from './lib/player';
 import { downloadFile, fileStem, formatDuration } from './lib/utils';
 
 type Status = 'idle' | 'decoding' | 'transcribing' | 'error';
@@ -46,6 +52,7 @@ export default function App() {
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [playProgress, setPlayProgress] = useState(0);
   const [playSource, setPlaySource] = useState<InstrumentSource | null>(null);
+  const [instrument, setInstrument] = useState<InstrumentId>('piano');
 
   // Resampled mono 22050 Hz buffer kept for re-transcription without re-decoding.
   const preparedBufferRef = useRef<AudioBuffer | null>(null);
@@ -133,7 +140,7 @@ export default function App() {
     if (!notes || notes.length === 0) return;
     setPlayState('loading');
     try {
-      const handle = await playNotes(notes, () => stopPlayback());
+      const handle = await playNotes(notes, () => stopPlayback(), instrument);
       playbackRef.current = handle;
       setPlaySource(handle.source);
       setPlayState('playing');
@@ -151,7 +158,7 @@ export default function App() {
       );
       stopPlayback();
     }
-  }, [playState, notes, stopPlayback]);
+  }, [playState, notes, stopPlayback, instrument]);
 
   // Stop any playback when the component unmounts.
   useEffect(() => stopPlayback, [stopPlayback]);
@@ -354,11 +361,26 @@ export default function App() {
                   disabled={!hasResult}
                 >
                   {playState === 'loading'
-                    ? '⏳ Đang tải tiếng piano…'
+                    ? '⏳ Đang tải…'
                     : playState === 'playing'
                       ? '⏹ Dừng'
-                      : '▶ Nghe thử (piano)'}
+                      : '▶ Nghe thử'}
                 </button>
+                <select
+                  className="instrument-select"
+                  value={instrument}
+                  title="Nhạc cụ phát"
+                  onChange={(e) => {
+                    stopPlayback();
+                    setInstrument(e.target.value as InstrumentId);
+                  }}
+                >
+                  {INSTRUMENTS.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                    </option>
+                  ))}
+                </select>
                 <div className="play-progress">
                   <div
                     className="play-progress__bar"
@@ -366,7 +388,7 @@ export default function App() {
                   />
                 </div>
                 {playState !== 'idle' && playSource === 'synth' && (
-                  <span className="play-source">(âm tổng hợp tạm — không tải được mẫu piano)</span>
+                  <span className="play-source">(âm tổng hợp tạm — không tải được mẫu)</span>
                 )}
               </div>
               <PianoRoll

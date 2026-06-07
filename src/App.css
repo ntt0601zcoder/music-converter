@@ -476,6 +476,20 @@ body {
   white-space: nowrap;
   box-shadow: 0 8px 20px -8px rgba(46, 230, 160, 0.7);
 }
+.instrument-select {
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.instrument-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 .play-progress {
   flex: 1;
   height: 7px;

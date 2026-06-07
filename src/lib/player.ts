@@ -14,6 +14,20 @@ import type { NoteEventTime } from './transcribe';
 
 export type InstrumentSource = 'soundfont-local' | 'soundfont-cdn' | 'synth';
 
+/** Selectable playback instruments (each maps to a General MIDI soundfont). */
+export type InstrumentId = 'piano' | 'guitar' | 'eguitar' | 'violin';
+
+export const INSTRUMENTS: { id: InstrumentId; label: string; gm: string }[] = [
+  { id: 'piano', label: '🎹 Piano', gm: 'acoustic_grand_piano' },
+  { id: 'guitar', label: '🎸 Guitar', gm: 'acoustic_guitar_steel' },
+  { id: 'eguitar', label: '🎸 Guitar điện', gm: 'electric_guitar_clean' },
+  { id: 'violin', label: '🎻 Violin', gm: 'violin' },
+];
+
+function gmName(id: InstrumentId): string {
+  return (INSTRUMENTS.find((x) => x.id === id) ?? INSTRUMENTS[0]).gm;
+}
+
 interface Instrument {
   source: InstrumentSource;
   play(midi: number, when: number, duration: number, gain: number): void;
@@ -22,7 +36,7 @@ interface Instrument {
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
-let instrumentPromise: Promise<Instrument> | null = null;
+const instrumentCache = new Map<InstrumentId, Promise<Instrument>>();
 
 /** Output boost so preview is clearly audible (soundfont samples are quiet). */
 const MASTER_GAIN = 3;
@@ -130,40 +144,43 @@ function makeSynth(ac: AudioContext): Instrument {
   };
 }
 
-async function loadSoundfontInstrument(ac: AudioContext): Promise<Instrument> {
+async function loadSoundfontInstrument(ac: AudioContext, id: InstrumentId): Promise<Instrument> {
   const base = import.meta.env.BASE_URL ?? '/';
-  const localUrl = `${base}soundfonts/acoustic_grand_piano-mp3.js`;
+  const gm = gmName(id);
+  const localUrl = `${base}soundfonts/${gm}-mp3.js`;
   const dest = getMaster();
   // 1. Local bundled soundfont (no network).
   try {
     const sf = await withTimeout(
       Soundfont.instrument(ac, localUrl, { destination: dest }),
       20000,
-      'tải tiếng piano (local)',
+      `tải tiếng ${gm} (local)`,
     );
     return wrapSoundfont(sf, 'soundfont-local');
   } catch (errLocal) {
-    console.warn('[player] local soundfont failed, trying CDN:', errLocal);
+    console.warn(`[player] local soundfont (${gm}) failed, trying CDN:`, errLocal);
   }
   // 2. Hosted soundfont (needs network).
   const sf = await withTimeout(
-    Soundfont.instrument(ac, 'acoustic_grand_piano', { soundfont: 'FluidR3_GM', destination: dest }),
+    Soundfont.instrument(ac, gm, { soundfont: 'FluidR3_GM', destination: dest }),
     20000,
-    'tải tiếng piano (CDN)',
+    `tải tiếng ${gm} (CDN)`,
   );
   return wrapSoundfont(sf, 'soundfont-cdn');
 }
 
-/** Load (and cache) a playable piano. Never rejects: falls back to a synth. */
-function loadInstrument(): Promise<Instrument> {
+/** Load (and cache) an instrument. Never rejects: falls back to a synth. */
+function loadInstrument(id: InstrumentId): Promise<Instrument> {
   const ac = getCtx();
-  if (!instrumentPromise) {
-    instrumentPromise = loadSoundfontInstrument(ac).catch((err) => {
-      console.warn('[player] all soundfonts failed, using synth fallback:', err);
+  let p = instrumentCache.get(id);
+  if (!p) {
+    p = loadSoundfontInstrument(ac, id).catch((err) => {
+      console.warn(`[player] all soundfonts failed for ${id}, using synth fallback:`, err);
       return makeSynth(ac);
     });
+    instrumentCache.set(id, p);
   }
-  return instrumentPromise;
+  return p;
 }
 
 export interface PlaybackHandle {
@@ -184,11 +201,12 @@ export interface PlaybackHandle {
 export async function playNotes(
   notes: NoteEventTime[],
   onEnd: () => void,
+  instrument: InstrumentId = 'piano',
 ): Promise<PlaybackHandle> {
   const ac = getCtx();
   if (ac.state === 'suspended') await ac.resume();
   await bindToDefaultOutput(ac); // follow the CURRENT default output device
-  const inst = await loadInstrument();
+  const inst = await loadInstrument(instrument);
 
   const sorted = [...notes].sort((a, b) => a.startTimeSeconds - b.startTimeSeconds);
   let total = 0;
