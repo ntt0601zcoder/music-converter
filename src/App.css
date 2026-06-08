@@ -141,6 +141,28 @@ body {
   white-space: nowrap;
 }
 
+/* ---------------- URL input ---------------- */
+.url-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.url-input {
+  flex: 1;
+  min-width: 200px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.92rem;
+}
+.url-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(109, 139, 255, 0.18);
+}
+
 /* ---------------- Convert bar ---------------- */
 .convert-bar {
   display: flex;

@@ -26,12 +26,13 @@ import {
 } from './lib/player';
 import { downloadFile, fileStem, formatDuration } from './lib/utils';
 
-type Status = 'idle' | 'decoding' | 'transcribing' | 'error';
+type Status = 'idle' | 'fetching' | 'decoding' | 'transcribing' | 'error';
 type PlayState = 'idle' | 'loading' | 'playing';
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
+  const [urlInput, setUrlInput] = useState('');
   const [status, setStatus] = useState<Status>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +61,7 @@ export default function App() {
   const playbackRef = useRef<PlaybackHandle | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const busy = status === 'decoding' || status === 'transcribing';
+  const busy = status === 'fetching' || status === 'decoding' || status === 'transcribing';
 
   // --- Derived: quantized score -> MusicXML (cheap; recompute on settings change) ---
   const quantized = useMemo(
@@ -196,21 +197,71 @@ export default function App() {
     preloadVerovio();
   }, []);
 
+  const convertFile = useCallback(
+    async (f: File) => {
+      setStatus('decoding');
+      try {
+        const prepared = await prepareAudio(f);
+        preparedBufferRef.current = prepared.buffer;
+        setDurationSeconds(prepared.durationSeconds);
+        await runModelAndDerive(prepared.buffer, transcribeOptions);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setStatus('error');
+      }
+    },
+    [transcribeOptions, runModelAndDerive],
+  );
+
   const handleConvert = useCallback(async () => {
     if (!file) return;
     stopPlayback();
     setError(null);
-    setStatus('decoding');
-    try {
-      const prepared = await prepareAudio(file);
-      preparedBufferRef.current = prepared.buffer;
-      setDurationSeconds(prepared.durationSeconds);
-      await runModelAndDerive(prepared.buffer, transcribeOptions);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus('error');
-    }
-  }, [file, transcribeOptions, runModelAndDerive, stopPlayback]);
+    await convertFile(file);
+  }, [file, convertFile, stopPlayback]);
+
+  // Load audio from a pasted URL (direct media link or YouTube) via the Worker.
+  const loadFromUrl = useCallback(
+    async (raw: string) => {
+      const link = raw.trim();
+      if (!link) return;
+      stopPlayback();
+      setError(null);
+      setStatus('fetching');
+      try {
+        const isYt = /(?:youtube\.com|youtu\.be)/i.test(link);
+        const api = `${isYt ? '/api/youtube' : '/api/fetch'}?url=${encodeURIComponent(link)}`;
+        const resp = await fetch(api);
+        if (!resp.ok) {
+          let msg = `Tải link lỗi ${resp.status}`;
+          try {
+            const j = (await resp.json()) as { error?: string };
+            if (j?.error) msg = j.error;
+          } catch {
+            /* not json */
+          }
+          throw new Error(msg);
+        }
+        const blob = await resp.blob();
+        if (blob.size === 0) throw new Error('Link không trả về dữ liệu âm thanh.');
+
+        const titleHdr = resp.headers.get('x-title');
+        const rawName = titleHdr
+          ? decodeURIComponent(titleHdr)
+          : fileStem(link.split('/').pop() || 'link');
+        const name = rawName.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80) || 'link';
+        const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+
+        handleFile(file);
+        setTitle(name);
+        await convertFile(file);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setStatus('error');
+      }
+    },
+    [stopPlayback, handleFile, convertFile],
+  );
 
   // "Nhận diện lại" with new sensitivity — now instant (re-derive from cache).
   const handleRetranscribe = useCallback(async () => {
@@ -242,6 +293,27 @@ export default function App() {
           compact={Boolean(file)}
         />
 
+        <div className="url-row">
+          <input
+            className="url-input"
+            type="url"
+            placeholder="hoặc dán link YouTube / audio / video…"
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') loadFromUrl(urlInput);
+            }}
+            disabled={busy}
+          />
+          <button
+            className="btn btn--primary"
+            onClick={() => loadFromUrl(urlInput)}
+            disabled={busy || !urlInput.trim()}
+          >
+            Tải từ link
+          </button>
+        </div>
+
         {file && (
           <div className="convert-bar">
             <input
@@ -261,9 +333,11 @@ export default function App() {
         {busy && (
           <div className="status">
             <div className="status__label">
-              {status === 'decoding'
-                ? 'Đang giải mã & resample âm thanh…'
-                : `Đang nhận diện nốt bằng AI… ${Math.round(progress * 100)}%`}
+              {status === 'fetching'
+                ? 'Đang tải từ link…'
+                : status === 'decoding'
+                  ? 'Đang giải mã & resample âm thanh…'
+                  : `Đang nhận diện nốt bằng AI… ${Math.round(progress * 100)}%`}
             </div>
             {status === 'transcribing' && (
               <div className="progress">

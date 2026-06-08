@@ -19,7 +19,8 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "soundfont-player": "^0.12.0",
-    "verovio": "^6.2.0"
+    "verovio": "^6.2.0",
+    "youtubei.js": "^17.0.1"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.40.0",
