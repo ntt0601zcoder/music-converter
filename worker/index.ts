@@ -113,17 +113,8 @@ async function handleYouTube(reqUrl: URL): Promise<Response> {
         'x-title': encodeURIComponent(title),
       },
     });
-  } catch (e) {
-    return json(
-      {
-        error:
-          'Không lấy được audio từ YouTube. YouTube hiện khóa stream sau token xác thực ' +
-          '(không trích xuất tự động được). Cách chắc chắn: tải bằng yt-dlp/trình tải YouTube ' +
-          'rồi upload file. Chi tiết: ' +
-          (e instanceof Error ? e.message : String(e)),
-      },
-      502,
-    );
+  } catch {
+    return json({ error: 'Không lấy được audio từ YouTube.' }, 502);
   }
 }
 
